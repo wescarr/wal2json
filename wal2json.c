@@ -37,6 +37,7 @@ typedef struct
 {
 	MemoryContext context;
 	bool		include_xids;		/* include transaction ids */
+	bool		include_full_xids;	/* include the 64 bit transaction ids */
 	bool		include_timestamp;	/* include transaction timestamp */
 	bool		include_schemas;	/* qualify tables */
 	bool		include_types;		/* include data types */
@@ -93,6 +94,7 @@ static void pg_decode_message(LogicalDecodingContext *ctx,
 
 static bool parse_table_identifier(List *qualified_tables, char separator, List **select_tables);
 static bool string_to_SelectTable(char *rawstring, char separator, List **select_tables);
+static uint64 convert_xid(TransactionId xid);
 
 void
 _PG_init(void)
@@ -115,6 +117,35 @@ _PG_output_plugin_init(OutputPluginCallbacks *cb)
 #endif
 }
 
+/*
+  * do a TransactionId -> txid conversion for an XID near the given epoch
+  * NOTE: This is heavily borrowed from http://doxygen.postgresql.org/txid_8c.html#ab7c28f6665db1d30fcaf26c93d74a3aa
+  */
+uint64 convert_xid(TransactionId xid)
+{
+	uint64      epoch;
+	uint32      current_epoch;
+	TransactionId current_xid;
+
+
+	/* return special xid's as-is */
+	if (!TransactionIdIsNormal(xid))
+		return (uint64) xid;
+
+	GetNextXidAndEpoch(&current_xid, &current_epoch);
+
+	/* xid can be on either side when near wrap-around */
+	epoch = (uint64)current_epoch;
+	if (xid > current_xid &&
+		TransactionIdPrecedes(xid, current_xid))
+		epoch--;
+	else if (xid < current_xid &&
+			TransactionIdFollows(xid, current_xid))
+		epoch++;
+
+	return (epoch << 32) | xid;
+}
+
 /* Initialize this plugin */
 static void
 pg_decode_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt, bool is_init)
@@ -135,6 +166,7 @@ pg_decode_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt, bool is
 #endif
                                         );
 	data->include_xids = false;
+	data->include_full_xids = false;
 	data->include_timestamp = false;
 	data->include_schemas = true;
 	data->include_types = true;
@@ -179,6 +211,20 @@ pg_decode_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt, bool is
 				data->include_xids = true;
 			}
 			else if (!parse_bool(strVal(elem->arg), &data->include_xids))
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("could not parse value \"%s\" for parameter \"%s\"",
+							 strVal(elem->arg), elem->defname)));
+		}
+		else if (strcmp(elem->defname, "include-full-xids") == 0)
+		{
+			/* If option does not provide a value, it means its value is true */
+			if (elem->arg == NULL)
+			{
+				elog(DEBUG1, "include-full-xids argument is null");
+				data->include_full_xids = true;
+			}
+			else if (!parse_bool(strVal(elem->arg), &data->include_full_xids))
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 						 errmsg("could not parse value \"%s\" for parameter \"%s\"",
@@ -413,6 +459,9 @@ pg_decode_begin_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
  	appendStringInfo(ctx->out, "{\"event\":\"begin\"");
 	if (data->include_xids)	
 		appendStringInfo(ctx->out, ",%s\"xid\":%s%u%s", data->sp, data->sp, txn->xid, data->sp);
+
+	if (data->include_full_xids)
+		appendStringInfo(ctx->out, ",%s\"fullxid\":%s%lu,%s", data->sp, data->sp, convert_xid(txn->xid), data->sp);
 
  	if (data->include_timestamp)	
 		appendStringInfo(ctx->out, ",%s\"timestamp\":%s\"%s\"%s", data->sp, data->sp, timestamptz_to_str(txn->commit_time), data->nl);	
@@ -880,6 +929,9 @@ pg_decode_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 
 	if (data->include_xids)	
 		appendStringInfo(ctx->out, "%s\"xid\":%s%u,%s", data->ht, data->sp, txn->xid, data->nl);
+
+	if (data->include_full_xids)
+		appendStringInfo(ctx->out, "%s\"fullxid\":%s%lu,%s", data->ht, data->sp, convert_xid(txn->xid), data->nl);
 
 	if (data->include_lsn)	
 	{	
