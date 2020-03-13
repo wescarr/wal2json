@@ -103,6 +103,32 @@ static void pg_decode_message(LogicalDecodingContext *ctx,
 static bool parse_table_identifier(List *qualified_tables, char separator, List **select_tables);
 static bool string_to_SelectTable(char *rawstring, char separator, List **select_tables);
 
+/* Prepares the LogicalDecodingContext for writing the output and initialize the message
+   adding the header if needed */
+static void
+init_message(LogicalDecodingContext *ctx, char msg_type, char *header)
+{
+	OutputPluginPrepareWrite(ctx, true);
+	JsonDecodingData *data = ctx->output_plugin_private;
+	if (data->include_message_header) {
+		appendStringInfo(ctx->out, "%c%c", msg_type, WAL2JSON_META_SEPARATOR);
+		if (header != NULL) {
+			int i;
+			for(i = 0; i < strlen(header); i++) {
+				char c = header[i];
+				if (c == '|') {
+					appendStringInfo(ctx->out, "\\|");
+				} else if (c == '\\') {
+					appendStringInfo(ctx->out, "\\\\");
+				} else {
+					appendStringInfoChar(ctx->out, c);
+				}
+			}
+			appendStringInfoChar(ctx->out, '|');
+		}
+	}
+}
+
 void
 _PG_init(void)
 {
@@ -431,7 +457,7 @@ pg_decode_begin_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 {
 	JsonDecodingData *data = ctx->output_plugin_private;	
 
-	OutputPluginPrepareWrite(ctx, true);
+	init_message(ctx, WAL2JSON_BEGIN_MSG_TYPE, NULL);
 
  	appendStringInfo(ctx->out, "{\"event\":\"begin\"");
 	if (data->include_xids)	
@@ -449,7 +475,7 @@ static void
 pg_decode_commit_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 					 XLogRecPtr commit_lsn)
 {
-	OutputPluginPrepareWrite(ctx, true);
+	init_message(ctx, WAL2JSON_COMMIT_MSG_TYPE, NULL);
  	appendStringInfo(ctx->out, "{\"event\":\"commit\"}");
 	OutputPluginWrite(ctx, true);
 }
@@ -781,7 +807,7 @@ pg_decode_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	schemaname = get_namespace_name(class_form->relnamespace);
 	tablename = NameStr(class_form->relname);
 
-	OutputPluginPrepareWrite(ctx, true);	
+	init_message(ctx, WAL2JSON_MODIFY_MSG_TYPE, tablename);
 
 	/* Make sure rd_replidindex is set */
 	RelationGetIndexList(relation);
@@ -1029,7 +1055,7 @@ pg_decode_message(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	/* Avoid leaking memory by using and resetting our own context */
 	old = MemoryContextSwitchTo(data->context);
 
-	OutputPluginPrepareWrite(ctx, true);
+	init_message(ctx, WAL2JSON_GENERIC_MSG_TYPE, NULL);
 	
 	appendStringInfo(ctx->out, "{%s%s\"kind\":%s\"message\",%s", data->nl, data->ht, data->sp, data->nl);
 
