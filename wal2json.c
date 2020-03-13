@@ -36,13 +36,15 @@ extern void	PGDLLEXPORT	_PG_output_plugin_init(OutputPluginCallbacks *cb);
 typedef struct
 {
 	MemoryContext context;
-	bool		include_xids;		/* include transaction ids */
-	bool		include_timestamp;	/* include transaction timestamp */
-	bool		include_schemas;	/* qualify tables */
-	bool		include_types;		/* include data types */
-	bool		include_type_oids;	/* include data type oids */
-	bool		include_typmod;		/* include typmod in types */
-	bool		include_not_null;	/* include not-null constraints */
+	bool		include_xids;				/* include transaction ids */
+	bool		include_timestamp;			/* include transaction timestamp */
+	bool		include_schemas;			/* qualify tables */
+	bool		include_types;				/* include data types */
+	bool		include_type_oids;			/* include data type oids */
+	bool		include_typmod;				/* include typmod in types */
+	bool		include_not_null;			/* include not-null constraints */
+	bool		include_message_metadata;	/* prepend every json message with some 
+											   message specific metadata like table name */
 
 	bool		pretty_print;		/* pretty-print JSON? */
 
@@ -143,6 +145,7 @@ pg_decode_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt, bool is
 	data->pretty_print = false;
 	data->include_lsn = false;
 	data->include_not_null = false;
+	data->include_message_metadata = false;
 	data->filter_tables = NIL;
 
 	data->format_version = WAL2JSON_FORMAT_VERSION;
@@ -257,6 +260,19 @@ pg_decode_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt, bool is
 				data->include_not_null = true;
 			}
 			else if (!parse_bool(strVal(elem->arg), &data->include_not_null))
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("could not parse value \"%s\" for parameter \"%s\"",
+							 strVal(elem->arg), elem->defname)));
+		}
+		else if (strcmp(elem->defname, "include-message-metadata") == 0)
+		{
+			if (elem->arg == NULL)
+			{
+				elog(DEBUG1, "include-message-metadata argument is null");
+				data->include_message_metadata = true;
+			}
+			else if (!parse_bool(strVal(elem->arg), &data->include_message_metadata))
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 						 errmsg("could not parse value \"%s\" for parameter \"%s\"",
