@@ -108,8 +108,8 @@ static bool string_to_SelectTable(char *rawstring, char separator, List **select
 static void
 init_message(LogicalDecodingContext *ctx, char msg_type, char *header)
 {
-	OutputPluginPrepareWrite(ctx, true);
 	JsonDecodingData *data = ctx->output_plugin_private;
+	OutputPluginPrepareWrite(ctx, true);
 	if (data->include_message_header) {
 		appendStringInfo(ctx->out, "%c%c", msg_type, WAL2JSON_META_SEPARATOR);
 		if (header != NULL) {
