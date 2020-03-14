@@ -116,15 +116,15 @@ init_message(LogicalDecodingContext *ctx, char msg_type, char *header)
             int i;
             for(i = 0; i < strlen(header); i++) {
                 char c = header[i];
-                if (c == '|') {
-                    appendStringInfo(ctx->out, "\\|");
+                if (c == WAL2JSON_META_SEPARATOR) {
+                    appendStringInfo(ctx->out, "\\%c", WAL2JSON_META_SEPARATOR);
                 } else if (c == '\\') {
                     appendStringInfo(ctx->out, "\\\\");
                 } else {
                     appendStringInfoChar(ctx->out, c);
                 }
             }
-            appendStringInfoChar(ctx->out, '|');
+            appendStringInfoChar(ctx->out, WAL2JSON_META_SEPARATOR);
         }
     }
 }
