@@ -28,12 +28,12 @@
 #define	WAL2JSON_FORMAT_VERSION			1
 #define	WAL2JSON_FORMAT_MIN_VERSION		1
 
-#define WAL2JSON_BEGIN_MSG_TYPE			'B'
-#define WAL2JSON_COMMIT_MSG_TYPE		'C'
-#define WAL2JSON_MODIFY_MSG_TYPE		'M'
-#define WAL2JSON_GENERIC_MSG_TYPE		'G'
+#define WAL2JSON_BEGIN_MSG_TYPE	        'B'
+#define WAL2JSON_COMMIT_MSG_TYPE        'C'
+#define WAL2JSON_MODIFY_MSG_TYPE        'M'
+#define WAL2JSON_GENERIC_MSG_TYPE       'G'
 
-#define WAL2JSON_META_SEPARATOR			'|'
+#define WAL2JSON_META_SEPARATOR	        '|'
 
 PG_MODULE_MAGIC;
 
@@ -108,25 +108,25 @@ static bool string_to_SelectTable(char *rawstring, char separator, List **select
 static void
 init_message(LogicalDecodingContext *ctx, char msg_type, char *header)
 {
-	JsonDecodingData *data = ctx->output_plugin_private;
-	OutputPluginPrepareWrite(ctx, true);
-	if (data->include_message_header) {
-		appendStringInfo(ctx->out, "%c%c", msg_type, WAL2JSON_META_SEPARATOR);
-		if (header != NULL) {
-			int i;
-			for(i = 0; i < strlen(header); i++) {
-				char c = header[i];
-				if (c == '|') {
-					appendStringInfo(ctx->out, "\\|");
-				} else if (c == '\\') {
-					appendStringInfo(ctx->out, "\\\\");
-				} else {
-					appendStringInfoChar(ctx->out, c);
-				}
-			}
-			appendStringInfoChar(ctx->out, '|');
-		}
-	}
+    JsonDecodingData *data = ctx->output_plugin_private;
+    OutputPluginPrepareWrite(ctx, true);
+    if (data->include_message_header) {
+        appendStringInfo(ctx->out, "%c%c", msg_type, WAL2JSON_META_SEPARATOR);
+        if (header != NULL) {
+            int i;
+            for(i = 0; i < strlen(header); i++) {
+                char c = header[i];
+                if (c == '|') {
+                    appendStringInfo(ctx->out, "\\|");
+                } else if (c == '\\') {
+                    appendStringInfo(ctx->out, "\\\\");
+                } else {
+                    appendStringInfoChar(ctx->out, c);
+                }
+            }
+            appendStringInfoChar(ctx->out, '|');
+        }
+    }
 }
 
 void
