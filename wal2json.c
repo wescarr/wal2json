@@ -28,6 +28,13 @@
 #define	WAL2JSON_FORMAT_VERSION			1
 #define	WAL2JSON_FORMAT_MIN_VERSION		1
 
+#define WAL2JSON_BEGIN_MSG_TYPE	        'B'
+#define WAL2JSON_COMMIT_MSG_TYPE        'C'
+#define WAL2JSON_MODIFY_MSG_TYPE        'M'
+#define WAL2JSON_GENERIC_MSG_TYPE       'G'
+
+#define WAL2JSON_META_SEPARATOR	        '|'
+
 PG_MODULE_MAGIC;
 
 extern void		_PG_init(void);
@@ -36,13 +43,15 @@ extern void	PGDLLEXPORT	_PG_output_plugin_init(OutputPluginCallbacks *cb);
 typedef struct
 {
 	MemoryContext context;
-	bool		include_xids;		/* include transaction ids */
-	bool		include_timestamp;	/* include transaction timestamp */
-	bool		include_schemas;	/* qualify tables */
-	bool		include_types;		/* include data types */
-	bool		include_type_oids;	/* include data type oids */
-	bool		include_typmod;		/* include typmod in types */
-	bool		include_not_null;	/* include not-null constraints */
+	bool		include_xids;			/* include transaction ids */
+	bool		include_timestamp;		/* include transaction timestamp */
+	bool		include_schemas;		/* qualify tables */
+	bool		include_types;			/* include data types */
+	bool		include_type_oids;		/* include data type oids */
+	bool		include_typmod;			/* include typmod in types */
+	bool		include_not_null;		/* include not-null constraints */
+	bool		include_message_header;	/* prepend every json message with some 
+										   message specific header like table name */
 
 	bool		pretty_print;		/* pretty-print JSON? */
 
@@ -94,6 +103,32 @@ static void pg_decode_message(LogicalDecodingContext *ctx,
 static bool parse_table_identifier(List *qualified_tables, char separator, List **select_tables);
 static bool string_to_SelectTable(char *rawstring, char separator, List **select_tables);
 
+/* Prepares the LogicalDecodingContext for writing the output and initialize the message
+   adding the header if needed */
+static void
+init_message(LogicalDecodingContext *ctx, char msg_type, char *header)
+{
+    JsonDecodingData *data = ctx->output_plugin_private;
+    OutputPluginPrepareWrite(ctx, true);
+    if (data->include_message_header) {
+        appendStringInfo(ctx->out, "%c%c", msg_type, WAL2JSON_META_SEPARATOR);
+        if (header != NULL) {
+            int i;
+            for(i = 0; i < strlen(header); i++) {
+                char c = header[i];
+                if (c == WAL2JSON_META_SEPARATOR) {
+                    appendStringInfo(ctx->out, "\\%c", WAL2JSON_META_SEPARATOR);
+                } else if (c == '\\') {
+                    appendStringInfo(ctx->out, "\\\\");
+                } else {
+                    appendStringInfoChar(ctx->out, c);
+                }
+            }
+            appendStringInfoChar(ctx->out, WAL2JSON_META_SEPARATOR);
+        }
+    }
+}
+
 void
 _PG_init(void)
 {
@@ -143,6 +178,7 @@ pg_decode_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt, bool is
 	data->pretty_print = false;
 	data->include_lsn = false;
 	data->include_not_null = false;
+	data->include_message_header = false;
 	data->filter_tables = NIL;
 
 	data->format_version = WAL2JSON_FORMAT_VERSION;
@@ -257,6 +293,19 @@ pg_decode_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt, bool is
 				data->include_not_null = true;
 			}
 			else if (!parse_bool(strVal(elem->arg), &data->include_not_null))
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("could not parse value \"%s\" for parameter \"%s\"",
+							 strVal(elem->arg), elem->defname)));
+		}
+		else if (strcmp(elem->defname, "include-message-header") == 0)
+		{
+			if (elem->arg == NULL)
+			{
+				elog(DEBUG1, "include-message-header argument is null");
+				data->include_message_header = true;
+			}
+			else if (!parse_bool(strVal(elem->arg), &data->include_message_header))
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 						 errmsg("could not parse value \"%s\" for parameter \"%s\"",
@@ -408,7 +457,7 @@ pg_decode_begin_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 {
 	JsonDecodingData *data = ctx->output_plugin_private;	
 
-	OutputPluginPrepareWrite(ctx, true);
+	init_message(ctx, WAL2JSON_BEGIN_MSG_TYPE, NULL);
 
  	appendStringInfo(ctx->out, "{\"event\":\"begin\"");
 	if (data->include_xids)	
@@ -426,7 +475,7 @@ static void
 pg_decode_commit_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 					 XLogRecPtr commit_lsn)
 {
-	OutputPluginPrepareWrite(ctx, true);
+	init_message(ctx, WAL2JSON_COMMIT_MSG_TYPE, NULL);
  	appendStringInfo(ctx->out, "{\"event\":\"commit\"}");
 	OutputPluginWrite(ctx, true);
 }
@@ -758,7 +807,7 @@ pg_decode_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	schemaname = get_namespace_name(class_form->relnamespace);
 	tablename = NameStr(class_form->relname);
 
-	OutputPluginPrepareWrite(ctx, true);	
+	init_message(ctx, WAL2JSON_MODIFY_MSG_TYPE, tablename);
 
 	/* Make sure rd_replidindex is set */
 	RelationGetIndexList(relation);
@@ -1006,7 +1055,7 @@ pg_decode_message(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	/* Avoid leaking memory by using and resetting our own context */
 	old = MemoryContextSwitchTo(data->context);
 
-	OutputPluginPrepareWrite(ctx, true);
+	init_message(ctx, WAL2JSON_GENERIC_MSG_TYPE, NULL);
 	
 	appendStringInfo(ctx->out, "{%s%s\"kind\":%s\"message\",%s", data->nl, data->ht, data->sp, data->nl);
 

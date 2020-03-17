@@ -1,0 +1,35 @@
+\set VERBOSITY terse
+-- predictability
+SET synchronous_commit = on;
+DROP TABLE IF EXISTS tbl;
+CREATE TABLE tbl (id int);
+SELECT 'init' FROM pg_create_logical_replication_slot('regression_slot', 'wal2json');
+ ?column? 
+----------
+ init
+(1 row)
+
+-- Insert one row and check header
+INSERT INTO tbl VALUES (1);
+SELECT data FROM pg_logical_slot_get_changes('regression_slot', NULL, NULL, 'pretty-print', '1', 'include-message-header', '1');
+                data                 
+-------------------------------------
+ B|{"event":"begin"}
+ M|tbl|{                            +
+         "event": "change",         +
+         "kind": "insert",          +
+         "schema": "public",        +
+         "table": "tbl",            +
+         "columnnames": ["id"],     +
+         "columntypes": ["integer"],+
+         "columnvalues": [1]        +
+ }
+ C|{"event":"commit"}
+(3 rows)
+
+SELECT 'stop' FROM pg_drop_replication_slot('regression_slot');
+ ?column? 
+----------
+ stop
+(1 row)
+
