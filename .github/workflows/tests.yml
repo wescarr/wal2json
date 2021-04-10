@@ -20,5 +20,5 @@ jobs:
           docker run -e POSTGRES_PASSWORD=password -d --name postgres_wal2json getsentry/postgres_wal2json  -c wal_level=logical -c max_replication_slots=1 -c max_wal_senders=1
       - name: wal2json tests
         run: |
-          docker exec postgres_wal2json sleep 10
+          docker exec postgres_wal2json sleep 5
           docker exec -e PGUSER=postgres postgres_wal2json make installcheck
