@@ -1,3 +1,6 @@
+\set VERBOSITY terse
+-- predictability
+SET synchronous_commit = on;
 SET extra_float_digits = 0;
 
 DROP TABLE IF EXISTS xpto;
@@ -17,5 +20,4 @@ UPDATE xpto SET rand1 = 123.456 WHERE id = 1;
 DELETE FROM xpto WHERE id = 1;
 
 SELECT data FROM pg_logical_slot_peek_changes('regression_slot', NULL, NULL, 'format-version', '1', 'pretty-print', '1', 'include-typmod', '0');
-SELECT data FROM pg_logical_slot_peek_changes('regression_slot', NULL, NULL, 'format-version', '2');
 SELECT 'stop' FROM pg_drop_replication_slot('regression_slot');
