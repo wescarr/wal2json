@@ -4,6 +4,11 @@ COPY . /wal2json
 WORKDIR /wal2json
 RUN make && make install
 
-FROM postgres:9.6-alpine
+FROM postgres:9.6-alpine as db
 COPY --from=build /usr/local/lib/postgresql/wal2json.so /usr/local/lib/postgresql/
 COPY /docker-entrypoint-initdb.d /docker-entrypoint-initdb.d
+
+FROM db as testing
+RUN apk add --no-cache --virtual .build-deps gcc git make musl-dev pkgconf diffutils
+COPY . /wal2json
+WORKDIR /wal2json
