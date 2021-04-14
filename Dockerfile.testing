@@ -1,0 +1,6 @@
+ARG PARENT_BUILD
+FROM ${PARENT_BUILD}
+
+RUN apk add --no-cache --virtual .build-deps gcc git make musl-dev pkgconf diffutils
+COPY . /wal2json
+WORKDIR /wal2json
