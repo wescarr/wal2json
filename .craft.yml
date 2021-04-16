@@ -1,0 +1,23 @@
+minVersion: "0.15.0"
+github:
+  owner: getsentry
+  repo: wal2json
+# TODO: Add a changelog
+changelogPolicy: none
+
+artifactProvider:
+  name: github
+statusProvider:
+  name: github
+
+targets:
+  - name: github
+  - name: registry
+    type: app
+    urlTemplate: "https://downloads.sentry-cdn.com/wal2json/{{version}}/{{file}}"
+    includeNames: /^wal2json-Linux-x86_64.so$/
+    config:
+      canonical: "app:relay"  
+
+requireNames:
+  - /^wal2json-Linux-x86_64.so$/
