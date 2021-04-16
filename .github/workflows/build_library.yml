@@ -3,7 +3,9 @@ name: Binary Release Build
 on:
   push:
     branches:
+      - master
       - release/**
+  pull_request:
     
 
 jobs:
@@ -14,14 +16,25 @@ jobs:
     steps:
       - uses: actions/checkout@v2
     
-      - name: Build in Docker (x86-64)
+      - name: Set up docker for build (x86_64)
         # Add more of these steps to support other architectures
         run: |
-          docker build --build-arg DOCKER_ARCH=amd64 -t getsentry/postgres_wal2json:build --target build .
-          docker create --name=postgres_wal2json getsentry/postgres_wal2json:build
-          docker cp postgres_wal2json:/usr/local/lib/postgresql/wal2json.so ./wal2json-Linux-x64.so
-
+          docker build \
+            --build-arg DOCKER_ARCH=amd64 \
+            -t getsentry/postgres_wal2json:build \
+            -f Dockerfile.builder .
+          docker run -d \
+            -v `pwd`:/wal2json \
+            --name postgres_wal2json \
+            -e POSTGRES_HOST_AUTH_METHOD=trust \
+            getsentry/postgres_wal2json:build \
+            -d postgres
+      - name: Build in Docker (x86-64)
+        run: |
+          docker exec \
+            postgres_wal2json \
+            make && mv wal2json.so wal2json-Linux-x86_64.so
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ github.sha }}
-          path: wal2json-Linux-x64.so
+          path: wal2json-Linux-x86_64.so
