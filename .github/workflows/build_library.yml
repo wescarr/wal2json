@@ -5,6 +5,8 @@ on:
     branches:
       - master
       - release/**
+  pull_request:
+    
     
 
 jobs:
@@ -22,17 +24,12 @@ jobs:
             --build-arg DOCKER_ARCH=amd64 \
             -t getsentry/postgres_wal2json:build \
             -f Dockerfile.builder .
-          docker run -d \
-            -v `pwd`:/wal2json \
-            --name postgres_wal2json \
-            -e POSTGRES_HOST_AUTH_METHOD=trust \
-            getsentry/postgres_wal2json:build \
-            -d postgres
       - name: Build in Docker (x86-64)
         run: |
-          docker exec \
-            postgres_wal2json \
-            make && mv wal2json.so wal2json-Linux-x86_64.so
+          docker run \
+            --entrypoint /workspace/entrypoint.sh \
+            -v `pwd`:/workspace \
+            getsentry/postgres_wal2json:build
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ github.sha }}
