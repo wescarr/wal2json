@@ -8,4 +8,5 @@ ARG DOCKER_ARCH=amd64
 FROM $DOCKER_ARCH/postgres:9.6-alpine
 RUN apk add --no-cache --virtual .build-deps gcc git make musl-dev pkgconf diffutils
 
-WORKDIR /wal2json
+WORKDIR /workspace
+ENTRYPOINT [ "./docker-entrypoint.sh" ]
