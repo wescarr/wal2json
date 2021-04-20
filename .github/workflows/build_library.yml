@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - release/**
+  pull_request:
 
 
 jobs:
@@ -25,7 +26,6 @@ jobs:
       - name: Build in Docker (x86-64)
         run: |
           docker run \
-            --entrypoint /workspace/entrypoint.sh \
             -v `pwd`:/workspace \
             getsentry/postgres_wal2json:build
       - uses: actions/upload-artifact@v2

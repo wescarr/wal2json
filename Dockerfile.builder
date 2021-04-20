@@ -9,3 +9,4 @@ FROM $DOCKER_ARCH/postgres:9.6-alpine
 RUN apk add --no-cache --virtual .build-deps gcc git make musl-dev pkgconf diffutils
 
 WORKDIR /workspace
+ENTRYPOINT [ "./docker-entrypoint.sh" ]
