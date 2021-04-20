@@ -6,7 +6,9 @@ ARG DOCKER_ARCH=amd64
 # part that changes) and run the build process on a running container
 
 FROM $DOCKER_ARCH/postgres:9.6-alpine
-RUN apk add --no-cache --virtual .build-deps gcc git make musl-dev pkgconf diffutils
+RUN apk add --no-cache --virtual .build-deps gcc make musl-dev pkgconf diffutils
+
+ENV DOCKER_ARCH=$DOCKER_ARCH
 
 WORKDIR /workspace
 ENTRYPOINT [ "./docker-entrypoint.sh" ]
