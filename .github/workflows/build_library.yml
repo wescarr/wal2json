@@ -19,13 +19,13 @@ jobs:
     
       - name: Set up docker for build (x86_64)
         # Add more of these steps to support other architectures
-        run: |
-          docker build \
-            --build-arg DOCKER_ARCH=amd64 \
-            -t getsentry/postgres_wal2json:build \
+        run: >
+          docker build
+            --build-arg DOCKER_ARCH=amd64
+            -t getsentry/postgres_wal2json:build
             -f Dockerfile.builder .
       - name: Build in Docker (x86-64)
-        run: >-
+        run: >
           docker run
             -e DOCKER_ARCH=amd64
             -v `pwd`:/workspace
