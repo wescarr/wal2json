@@ -1,4 +1,5 @@
-minVersion: "0.15.0"
+minVersion: "0.20.0"
+
 github:
   owner: getsentry
   repo: wal2json
@@ -10,14 +11,10 @@ artifactProvider:
 statusProvider:
   name: github
 
+preReleaseCommand: ''
+
 targets:
   - name: github
-  - name: registry
-    type: app
-    urlTemplate: "https://downloads.sentry-cdn.com/wal2json/{{version}}/{{file}}"
-    includeNames: /^wal2json-Linux-x86_64.so$/
-    config:
-      canonical: "app:relay"  
 
 requireNames:
   - /^wal2json-Linux-x86_64.so$/
