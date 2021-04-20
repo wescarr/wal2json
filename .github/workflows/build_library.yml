@@ -1,0 +1,34 @@
+name: Binary Release Build
+
+on:
+  push:
+    branches:
+      - master
+      - release/**
+
+
+jobs:
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+  
+    steps:
+      - uses: actions/checkout@v2
+    
+      - name: Set up docker for build (x86_64)
+        # Add more of these steps to support other architectures
+        run: >
+          docker build
+          --build-arg DOCKER_ARCH=amd64
+          -t getsentry/postgres_wal2json:build
+          -f Dockerfile.builder .
+      - name: Build in Docker (x86-64)
+        run: >
+          docker run
+          -e DOCKER_ARCH=amd64
+          -v `pwd`:/workspace
+          getsentry/postgres_wal2json:build
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.sha }}
+          path: wal2json-Linux-x86_64.so
